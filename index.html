@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>محكاة لقرص ناموسة لمحمد محب رغودا</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  html, body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #f7efe8;
+    user-select: none;
+    -webkit-user-select: none;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: crosshair;
+  }
+
+  /* تصميم العنوان العلوي */
+  .top-header {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    background: rgba(255, 253, 250, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 16px 32px 12px 32px;
+    border-radius: 50px;
+    box-shadow: 0 8px 28px rgba(140, 95, 70, 0.16), 0 0 0 2px rgba(255, 255, 255, 0.9);
+    pointer-events: none;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .header-title {
+    font-size: clamp(1.15rem, 3.2vw, 2.05rem);
+    font-weight: 900;
+    color: #0d5bd9; /* باقي الكلام باللون الأزرق */
+    text-shadow: 0 2px 10px rgba(13, 91, 217, 0.18);
+    letter-spacing: 0.3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .raghouda-word {
+    position: relative;
+    display: inline-block;
+    color: #ff2a85; /* كلمة رغودا باللون الوردي */
+    text-shadow: 0 2px 12px rgba(255, 42, 133, 0.35);
+    padding: 0 4px;
+    animation: pulsePink 2.2s infinite ease-in-out;
+  }
+
+  .crown-icon {
+    position: absolute;
+    top: -1.15em;
+    left: 50%;
+    transform: translateX(-50%) rotate(-4deg);
+    width: 1.35em;
+    height: 1.1em;
+    filter: drop-shadow(0 3px 5px rgba(212, 145, 0, 0.45));
+    animation: floatCrown 2.2s infinite ease-in-out;
+    pointer-events: none;
+  }
+
+  @keyframes floatCrown {
+    0%, 100% { transform: translateX(-50%) translateY(0px) rotate(-5deg); }
+    50% { transform: translateX(-50%) translateY(-4px) rotate(4deg); }
+  }
+
+  @keyframes pulsePink {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+</style>
+</head>
+<body>
+
+<!-- العنوان العلوي مع التاج فوق كلمة رغودا -->
+<header class="top-header">
+  <h1 class="header-title">
+    <span>محكاة لقرص ناموسة لمحمد محب</span>
+    <span class="raghouda-word">
+      <svg class="crown-icon" viewBox="0 0 64 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 38L2 14L19 25L32 8L45 25L62 14L58 38H6Z" fill="url(#goldGrad)" stroke="#b87700" stroke-width="2.5" stroke-linejoin="round"/>
+        <rect x="6" y="40" width="52" height="6" rx="3" fill="url(#goldGrad)" stroke="#b87700" stroke-width="2"/>
+        <circle cx="32" cy="6" r="4" fill="#ff2a85" stroke="#fff" stroke-width="1.2"/>
+        <circle cx="3" cy="11" r="3.2" fill="#0d5bd9" stroke="#fff" stroke-width="1"/>
+        <circle cx="61" cy="11" r="3.2" fill="#0d5bd9" stroke="#fff" stroke-width="1"/>
+        <circle cx="32" cy="29" r="3.5" fill="#ff2a85"/>
+        <circle cx="18" cy="31" r="2.5" fill="#00d2ff"/>
+        <circle cx="46" cy="31" r="2.5" fill="#00d2ff"/>
+        <defs>
+          <linearGradient id="goldGrad" x1="32" y1="6" x2="32" y2="46" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#ffe566"/>
+            <stop offset="55%" stop-color="#ffbb00"/>
+            <stop offset="100%" stop-color="#e08900"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      رغودا
+    </span>
+  </h1>
+</header>
+
+<canvas id="simCanvas"></canvas>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('simCanvas');
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  let width = 0;
+  let height = 0;
+  let dpr = 1;
+  let scaleFactor = 1;
+
+  // دوال رياضية مساعدة
+  const TAU = Math.PI * 2;
+  const clamp = (v, min, max) => (v < min ? min : v > max ? max : v);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smoothstep = (e0, e1, x) => {
+    const t = clamp((x - e0) / (e1 - e0), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+  const smootherstep = (e0, e1, x) => {
+    const t = clamp((x - e0) / (e1 - e0), 0, 1);
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  };
+
+  // مولد أرقام عشوائية متسق للتفاصيل التشريحية
+  class PRNG {
+    constructor(seed = 1337) {
+      this.s = seed % 2147483647;
+      if (this.s <= 0) this.s += 2147483646;
+    }
+    next() {
+      this.s = (this.s * 16807) % 2147483647;
+      return (this.s - 1) / 2147483646;
+    }
+    range(min, max) {
+      return min + (max - min) * this.next();
+    }
+  }
+
+  // ============================================================================
+  // إضاءة المختبر والغبار المجهري (Macro Studio Atmosphere)
+  // ============================================================================
+  class StudioAtmosphere {
+    constructor() {
+      this.motes = [];
+      const rng = new PRNG(9012);
+      for (let i = 0; i < 55; i++) {
+        this.motes.push({
+          x: rng.range(0, 1),
+          y: rng.range(0, 0.78),
+          r: rng.range(1.2, 18),
+          vx: rng.range(-0.006, 0.012),
+          vy: rng.range(-0.008, -0.002),
+          alpha: rng.range(0.05, 0.28),
+          phase: rng.range(0, TAU),
+          freq: rng.range(0.6, 2.2),
+          inFocus: rng.next() > 0.65
+        });
+      }
+    }
+
+    renderBackground(ctx, w, h, time) {
+      const bgGrad = ctx.createLinearGradient(w * 0.25, 0, w * 0.65, h);
+      bgGrad.addColorStop(0.0, '#fffdf9');
+      bgGrad.addColorStop(0.35, '#fbf4ec');
+      bgGrad.addColorStop(0.68, '#f3e5d7');
+      bgGrad.addColorStop(1.0, '#e8d2be');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      const sunBloom = ctx.createRadialGradient(
+        w * 0.22, h * 0.12, w * 0.02,
+        w * 0.28, h * 0.20, w * 0.75
+      );
+      sunBloom.addColorStop(0.0, 'rgba(255, 253, 245, 0.92)');
+      sunBloom.addColorStop(0.45, 'rgba(255, 246, 232, 0.45)');
+      sunBloom.addColorStop(1.0, 'rgba(248, 232, 215, 0.0)');
+      ctx.fillStyle = sunBloom;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.save();
+      for (let i = 0; i < this.motes.length; i++) {
+        const m = this.motes[i];
+        if (m.inFocus) continue;
+        const px = ((m.x + time * m.vx) % 1 + 1) % 1 * w;
+        const py = ((m.y + time * m.vy) % 0.78 + 0.78) % 0.78 * h;
+        const pulse = 0.75 + 0.25 * Math.sin(time * m.freq + m.phase);
+        const rad = m.r * scaleFactor;
+
+        const g = ctx.createRadialGradient(px, py, rad * 0.1, px, py, rad);
+        g.addColorStop(0, `rgba(255, 252, 242, ${m.alpha * pulse})`);
+        g.addColorStop(0.75, `rgba(255, 244, 226, ${m.alpha * pulse * 0.65})`);
+        g.addColorStop(1, 'rgba(255, 244, 226, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(px, py, rad, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    renderForeground(ctx, w, h, time) {
+      ctx.save();
+      for (let i = 0; i < this.motes.length; i++) {
+        const m = this.motes[i];
+        if (!m.inFocus) continue;
+        const px = ((m.x + time * m.vx * 1.4) % 1 + 1) % 1 * w;
+        const py = ((m.y + time * m.vy * 1.4) % 0.85 + 0.85) % 0.85 * h;
+        const pulse = 0.7 + 0.3 * Math.sin(time * m.freq + m.phase);
+        const rad = Math.min(3.2, m.r * 0.25) * scaleFactor;
+
+        ctx.fillStyle = `rgba(255, 250, 240, ${m.alpha * 1.5 * pulse})`;
+        ctx.beginPath();
+        ctx.arc(px, py, rad, 0, TAU);
+        ctx.fill();
+      }
+
+      const vig = ctx.createRadialGradient(
+        w * 0.5, h * 0.5, Math.min(w, h) * 0.38,
+        w * 0.5, h * 0.5, Math.max(w, h) * 0.78
+      );
+      vig.addColorStop(0, 'rgba(255, 255, 255, 0)');
+      vig.addColorStop(0.75, 'rgba(232, 208, 190, 0.08)');
+      vig.addColorStop(1, 'rgba(195, 158, 132, 0.26)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+  }
+
+  // ============================================================================
+  // محاكاة جلد الإنسان، العرق الدموي الكبير، وكريات الدم "رغودا"
+  // ============================================================================
+  class HumanSkinSimulation {
+    constructor() {
+      this.numNodes = 160;
+      this.nodes = [];
+      this.pores = [];
+      this.hairs = [];
+      this.corneocytes = [];
+      this.capillaries = [];
+      this.bloodCells = [];
+      this.punctureNormX = 0.43;
+      this.baseSurfaceRatio = 0.655;
+      this.erythemaLevel = 0;
+
+      this.initAnatomy();
+    }
+
+    initAnatomy() {
+      const rng = new PRNG(4096);
+      this.nodes = [];
+      for (let i = 0; i <= this.numNodes; i++) {
+        const u = i / this.numNodes;
+        const ridge =
+          Math.sin(u * 65) * 1.35 +
+          Math.cos(u * 170 + 0.8) * 0.65 +
+          Math.sin(u * 12) * 3.2;
+        this.nodes.push({
+          u,
+          baseOffset: ridge,
+          yOffset: 0,
+          vy: 0,
+          targetOffset: 0
+        });
+      }
+
+      // المسام الجلدية
+      this.pores = [];
+      for (let i = 0; i < 180; i++) {
+        const u = rng.range(-0.02, 1.02);
+        const depthBias = Math.pow(rng.next(), 1.15);
+        this.pores.push({
+          u,
+          v: depthBias,
+          rx: rng.range(2.2, 6.8),
+          ry: rng.range(1.1, 3.2),
+          angle: rng.range(-0.18, 0.18),
+          shade: rng.range(0.11, 0.28),
+          spec: rng.range(0.18, 0.52)
+        });
+      }
+
+      // الشعيرات الدقيقة على الجلد
+      this.hairs = [];
+      for (let i = 0; i < 40; i++) {
+        const u = rng.range(0.03, 0.97);
+        if (Math.abs(u - this.punctureNormX) < 0.028) continue;
+        const v = rng.range(0.0, 0.45);
+        const len = rng.range(38, 105) * (0.65 + 0.6 * (1 - v));
+        const dir = rng.next() > 0.15 ? 1 : -1;
+        this.hairs.push({
+          u,
+          v,
+          len,
+          baseAngle: -Math.PI * 0.5 + dir * rng.range(0.28, 0.72),
+          curve: dir * rng.range(0.2, 0.55),
+          thickness: rng.range(1.0, 2.2),
+          alpha: rng.range(0.28, 0.62) * (1 - v * 0.55),
+          bendOffset: 0,
+          bendVel: 0
+        });
+      }
+
+      // خلايا البشرة السطحية
+      this.corneocytes = [];
+      for (let i = 0; i < 110; i++) {
+        this.corneocytes.push({
+          u: rng.range(0, 1),
+          v: rng.range(0.01, 0.75),
+          w: rng.range(14, 38),
+          h: rng.range(5, 13),
+          alpha: rng.range(0.03, 0.08)
+        });
+      }
+
+      // تفرعات الشعيرات الدموية المتصلة بالعرق الكبير
+      this.capillaries = [];
+      for (let i = 0; i < 16; i++) {
+        const u = 0.06 + (i / 15) * 0.88 + rng.range(-0.015, 0.015);
+        this.capillaries.push({
+          u,
+          loopHeight: rng.range(22, 48),
+          width: rng.range(10, 20),
+          skew: rng.range(-6, 6)
+        });
+      }
+
+      // كريات الدم على شكل كلمة "رغودا" تتدفق داخل العرق الكبير
+      this.bloodCells = [];
+      for (let i = 0; i < 28; i++) {
+        this.bloodCells.push({
+          u: i / 28,
+          laneOffset: rng.range(-0.62, 0.62), // توزيع داخل عرض العرق الكبير
+          speed: rng.range(0.038, 0.062),
+          scale: rng.range(0.88, 1.18),
+          wobblePhase: rng.range(0, TAU),
+          suckProgress: 0 // يزداد عندما تسحبها الناموسة
+        });
+      }
+    }
+
+    getSurfacePoint(u, w, h) {
+      const clampedU = clamp(u, 0, 1);
+      const idxFloat = clampedU * this.numNodes;
+      const idx0 = Math.floor(idxFloat);
+      const idx1 = Math.min(this.numNodes, idx0 + 1);
+      const frac = idxFloat - idx0;
+
+      const n0 = this.nodes[idx0];
+      const n1 = this.nodes[idx1];
+
+      const baseY = h * this.baseSurfaceRatio;
+      const macroCurve = Math.sin(clampedU * Math.PI) * (-18 * scaleFactor);
+      const nodeDisp = lerp(
+        n0.baseOffset + n0.yOffset,
+        n1.baseOffset + n1.yOffset,
+        frac
+      ) * scaleFactor;
+
+      return {
+        x: clampedU * w,
+        y: baseY + macroCurve + nodeDisp,
+        deformation: lerp(n0.yOffset, n1.yOffset, frac) * scaleFactor
+      };
+    }
+
+    // حساب مركز العرق الدموي الكبير عند أي نقطة u
+    getVesselCenter(u, w, h) {
+      const sPt = this.getSurfacePoint(u, w, h);
+      return {
+        x: u * w,
+        y: sPt.y + (102 + Math.sin(u * 8 + 0.5) * 14) * scaleFactor
+      };
+    }
+
+    getTargetVesselPoint(w, h) {
+      const vPt = this.getVesselCenter(this.punctureNormX, w, h);
+      return {
+        x: vPt.x + 8 * scaleFactor,
+        y: vPt.y - 4 * scaleFactor
+      };
+    }
+
+    update(dt, punctureForce, footContacts, erythemaTarget) {
+      this.erythemaLevel = lerp(this.erythemaLevel, erythemaTarget, clamp(dt * 2.5, 0, 1));
+
+      for (let i = 0; i <= this.numNodes; i++) {
+        const node = this.nodes[i];
+        let target = 0;
+
+        if (Math.abs(punctureForce) > 0.001) {
+          const dist = Math.abs(node.u - this.punctureNormX);
+          const sigma = punctureForce > 0 ? 0.042 : 0.028;
+          const influence = Math.exp(-(dist * dist) / (2 * sigma * sigma));
+          const cusp = Math.exp(-dist / 0.014);
+          target += punctureForce * (0.55 * influence + 0.45 * cusp);
+        }
+
+        for (let c = 0; c < footContacts.length; c++) {
+          const fc = footContacts[c];
+          if (fc.pressure > 0.01) {
+            const dist = Math.abs(node.u - fc.u);
+            if (dist < 0.04) {
+              const inf = Math.exp(-(dist * dist) / (2 * 0.009 * 0.009));
+              target += fc.pressure * 4.5 * inf;
+            }
+          }
+        }
+
+        node.targetOffset = target;
+      }
+
+      const stiffness = 190;
+      const damping = 16.5;
+      const coupling = 85;
+
+      for (let i = 0; i <= this.numNodes; i++) {
+        const node = this.nodes[i];
+        let force = (node.targetOffset - node.yOffset) * stiffness - node.vy * damping;
+        if (i > 0) force += (this.nodes[i - 1].yOffset - node.yOffset) * coupling;
+        if (i < this.numNodes) force += (this.nodes[i + 1].yOffset - node.yOffset) * coupling;
+        node.vy += force * dt;
+        node.yOffset += node.vy * dt;
+      }
+
+      for (let i = 0; i < this.hairs.length; i++) {
+        const hObj = this.hairs[i];
+        const distToPuncture = hObj.u - this.punctureNormX;
+        let targetBend = 0;
+        if (Math.abs(distToPuncture) < 0.08) {
+          targetBend = -Math.sign(distToPuncture) * (punctureForce * 0.014) * Math.exp(-Math.abs(distToPuncture) * 28);
+        }
+        const f = (targetBend - hObj.bendOffset) * 90 - hObj.bendVel * 10;
+        hObj.bendVel += f * dt;
+        hObj.bendOffset += hObj.bendVel * dt;
+      }
+    }
+
+    // دالة مساعدة لرسم كرية دم على شكل كلمة "رغودا"
+    drawRaghoudaCell(ctx, x, y, angle, cellScale, alpha) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.scale(cellScale, cellScale);
+
+      const rx = 21 * scaleFactor;
+      const ry = 10.5 * scaleFactor;
+
+      // غشاء كرية الدم الحمراء/الوردية
+      const cellGrad = ctx.createRadialGradient(-3 * scaleFactor, -2 * scaleFactor, 2 * scaleFactor, 0, 0, rx);
+      cellGrad.addColorStop(0.0, `rgba(255, 65, 110, ${alpha * 0.95})`);
+      cellGrad.addColorStop(0.65, `rgba(210, 15, 45, ${alpha * 0.92})`);
+      cellGrad.addColorStop(1.0, `rgba(145, 5, 25, ${alpha * 0.85})`);
+
+      ctx.fillStyle = cellGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, TAU);
+      ctx.fill();
+
+      // حلقة إضاءة طرفية للكرية
+      ctx.strokeStyle = `rgba(255, 185, 205, ${alpha * 0.7})`;
+      ctx.lineWidth = 1.2 * scaleFactor;
+      ctx.stroke();
+
+      // كتابة كلمة "رغودا" بوضوح في قلب الكرية
+      ctx.font = `900 ${Math.max(9, Math.round(11.5 * scaleFactor))}px "Segoe UI", Tahoma, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = `rgba(255, 240, 246, ${alpha})`;
+      ctx.fillText('رغودا', 0, 0.5 * scaleFactor);
+
+      ctx.restore();
+    }
+
+    render(ctx, w, h, time, dt, bloodFlowRate, pierceTipPt) {
+      const pSurf = this.getSurfacePoint(this.punctureNormX, w, h);
+
+      ctx.save();
+
+      // 1. مسار سطح الجلد
+      ctx.beginPath();
+      const firstPt = this.getSurfacePoint(0, w, h);
+      ctx.moveTo(0, firstPt.y);
+      for (let i = 1; i <= this.numNodes; i++) {
+        const pt = this.getSurfacePoint(i / this.numNodes, w, h);
+        ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+
+      const skinGrad = ctx.createLinearGradient(0, pSurf.y - 20 * scaleFactor, 0, h);
+      skinGrad.addColorStop(0.0, '#f9dfd0');
+      skinGrad.addColorStop(0.05, '#f4c7b0');
+      skinGrad.addColorStop(0.18, '#ebaa90');
+      skinGrad.addColorStop(0.48, '#de8872');
+      skinGrad.addColorStop(0.82, '#c86958');
+      skinGrad.addColorStop(1.0, '#ad5144');
+      ctx.fillStyle = skinGrad;
+      ctx.fill();
+
+      ctx.save();
+      ctx.clip();
+
+      // 2. توهج تشتت الضوء تحت الجلد (SSS) واحمرار موضع القرص
+      const sssGlow = ctx.createRadialGradient(
+        w * 0.35, pSurf.y + 20 * scaleFactor, 10 * scaleFactor,
+        w * 0.45, pSurf.y + 90 * scaleFactor, w * 0.55
+      );
+      sssGlow.addColorStop(0.0, 'rgba(255, 195, 165, 0.45)');
+      sssGlow.addColorStop(0.5, 'rgba(245, 130, 105, 0.18)');
+      sssGlow.addColorStop(1.0, 'rgba(210, 80, 65, 0.0)');
+      ctx.fillStyle = sssGlow;
+      ctx.fillRect(0, pSurf.y - 40 * scaleFactor, w, h - pSurf.y + 40 * scaleFactor);
+
+      const flushAlpha = 0.16 + this.erythemaLevel * 0.36;
+      const erythemaGrad = ctx.createRadialGradient(
+        pSurf.x, pSurf.y + 28 * scaleFactor, 4 * scaleFactor,
+        pSurf.x, pSurf.y + 38 * scaleFactor, 165 * scaleFactor
+      );
+      erythemaGrad.addColorStop(0.0, `rgba(225, 42, 48, ${flushAlpha})`);
+      erythemaGrad.addColorStop(0.42, `rgba(232, 78, 72, ${flushAlpha * 0.65})`);
+      erythemaGrad.addColorStop(1.0, 'rgba(232, 78, 72, 0)');
+      ctx.fillStyle = erythemaGrad;
+      ctx.fillRect(pSurf.x - 180 * scaleFactor, pSurf.y - 30 * scaleFactor, 360 * scaleFactor, 240 * scaleFactor);
+
+      // 3. العرق الدموي الكبير (تم تكبيره بشكل واضح جداً) + الشعيرات الفرعية
+      const pulse = 0.5 + 0.5 * Math.sin(time * 7.2);
+
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // الشعيرات الدموية الصاعدة من العرق الكبير
+      for (let i = 0; i < this.capillaries.length; i++) {
+        const cap = this.capillaries[i];
+        const vPt = this.getVesselCenter(cap.u, w, h);
+        const sPt = this.getSurfacePoint(cap.u, w, h);
+        const topVy = sPt.y + cap.loopHeight * scaleFactor;
+        const cx = cap.u * w;
+        const halfW = cap.width * 0.5 * scaleFactor;
+
+        ctx.strokeStyle = 'rgba(175, 22, 36, 0.24)';
+        ctx.lineWidth = 5.5 * scaleFactor;
+        ctx.beginPath();
+        ctx.moveTo(cx - halfW, vPt.y);
+        ctx.bezierCurveTo(
+          cx - halfW + cap.skew * scaleFactor, topVy,
+          cx + halfW + cap.skew * scaleFactor, topVy,
+          cx + halfW, vPt.y
+        );
+        ctx.stroke();
+      }
+
+      // مسار العرق الرئيسي الكبير
+      ctx.beginPath();
+      for (let i = 0; i <= 50; i++) {
+        const u = i / 50;
+        const vPt = this.getVesselCenter(u, w, h);
+        if (i === 0) ctx.moveTo(vPt.x, vPt.y);
+        else ctx.lineTo(vPt.x, vPt.y);
+      }
+
+      // الغلاف الخارجي للعرق الكبير
+      ctx.strokeStyle = `rgba(165, 18, 32, ${0.32 + 0.05 * pulse + this.erythemaLevel * 0.08})`;
+      ctx.lineWidth = (66 + 4.5 * pulse) * scaleFactor;
+      ctx.stroke();
+
+      // جدار الوريد العضلي
+      ctx.strokeStyle = `rgba(130, 10, 22, ${0.55 + 0.06 * pulse})`;
+      ctx.lineWidth = (48 + 3.2 * pulse) * scaleFactor;
+      ctx.stroke();
+
+      // التجويف الداخلي للعرق الكبير (Lumen) حيث تجري كريات "رغودا"
+      ctx.strokeStyle = `rgba(92, 6, 16, 0.72)`;
+      ctx.lineWidth = (38 + 2.2 * pulse) * scaleFactor;
+      ctx.stroke();
+
+      // 4. تحديث ورسم كريات الدم على شكل كلمة "رغودا" داخل العرق الكبير
+      const targetVesselPt = pierceTipPt || this.getTargetVesselPoint(w, h);
+      const lumenHalfWidth = 14 * scaleFactor;
+
+      for (let i = 0; i < this.bloodCells.length; i++) {
+        const cell = this.bloodCells[i];
+
+        if (bloodFlowRate > 0.05 && Math.abs(cell.u - this.punctureNormX) < 0.14) {
+          // انحراف الكريات وانسحابها نحو طرف خرطوم الناموسة أثناء المص
+          cell.suckProgress = clamp(cell.suckProgress + dt * (1.2 + bloodFlowRate * 1.8), 0, 1);
+          cell.u = lerp(cell.u, this.punctureNormX, dt * 3.2 * bloodFlowRate);
+          if (cell.suckProgress >= 0.98) {
+            cell.suckProgress = 0;
+            cell.u = (i % 2 === 0) ? 0.02 : 0.98;
+          }
+        } else {
+          cell.suckProgress = Math.max(0, cell.suckProgress - dt * 2);
+          cell.u = (cell.u + cell.speed * (1 + 0.25 * pulse) * dt) % 1;
+        }
+
+        const vCenter = this.getVesselCenter(cell.u, w, h);
+        const vNext = this.getVesselCenter(Math.min(1, cell.u + 0.01), w, h);
+        const streamAngle = Math.atan2(vNext.y - vCenter.y, vNext.x - vCenter.x);
+
+        const wobbleY = Math.sin(time * 3.5 + cell.wobblePhase) * 2.5 * scaleFactor;
+        let cx = vCenter.x;
+        let cy = vCenter.y + cell.laneOffset * lumenHalfWidth + wobbleY;
+        let cAngle = streamAngle + Math.sin(time * 2.2 + cell.wobblePhase) * 0.08;
+        let cScale = cell.scale * (1 - 0.35 * cell.suckProgress);
+
+        if (cell.suckProgress > 0.01) {
+          cx = lerp(cx, targetVesselPt.x, smoothstep(0, 1, cell.suckProgress));
+          cy = lerp(cy, targetVesselPt.y, smoothstep(0, 1, cell.suckProgress));
+          cAngle = lerp(cAngle, -Math.PI * 0.45, cell.suckProgress);
+        }
+
+        this.drawRaghoudaCell(ctx, cx, cy, cAngle, cScale, 0.92);
+      }
+
+      ctx.restore();
+
+      // 5. المسام والخلايا السطحية للجلد
+      for (let i = 0; i < this.corneocytes.length; i++) {
+        const c = this.corneocytes[i];
+        const sPt = this.getSurfacePoint(c.u, w, h);
+        const cy = sPt.y + c.v * (h - sPt.y);
+        ctx.strokeStyle = `rgba(255, 238, 226, ${c.alpha})`;
+        ctx.lineWidth = 0.9 * scaleFactor;
+        ctx.beginPath();
+        ctx.ellipse(sPt.x, cy, c.w * scaleFactor, c.h * scaleFactor, 0.05, 0, TAU);
+        ctx.stroke();
+      }
+
+      for (let i = 0; i < this.pores.length; i++) {
+        const p = this.pores[i];
+        const sPt = this.getSurfacePoint(p.u, w, h);
+        const py = sPt.y + p.v * (h - sPt.y) * 0.72 + 4 * scaleFactor;
+        const persp = 0.55 + 0.65 * (1 - p.v);
+        const rx = p.rx * persp * scaleFactor;
+        const ry = p.ry * persp * scaleFactor;
+
+        ctx.fillStyle = `rgba(165, 92, 74, ${p.shade * (1 - p.v * 0.55)})`;
+        ctx.beginPath();
+        ctx.ellipse(sPt.x, py, rx, ry, p.angle, 0, TAU);
+        ctx.fill();
+
+        ctx.strokeStyle = `rgba(255, 244, 234, ${p.spec * (1 - p.v * 0.6)})`;
+        ctx.lineWidth = 1.1 * scaleFactor;
+        ctx.beginPath();
+        ctx.ellipse(sPt.x, py + 0.8 * scaleFactor, rx * 0.92, ry * 0.85, p.angle, 0.15, Math.PI - 0.15);
+        ctx.stroke();
+      }
+
+      // 6. خط إضاءة سطح البشرة
+      ctx.beginPath();
+      ctx.moveTo(0, firstPt.y);
+      for (let i = 1; i <= this.numNodes; i++) {
+        const pt = this.getSurfacePoint(i / this.numNodes, w, h);
+        ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.strokeStyle = 'rgba(255, 248, 240, 0.85)';
+      ctx.lineWidth = 3.2 * scaleFactor;
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(242, 188, 162, 0.55)';
+      ctx.lineWidth = 8.5 * scaleFactor;
+      ctx.stroke();
+
+      ctx.restore(); // نهاية قص الجلد
+
+      // 7. شعيرات الجلد الخلفية
+      this.renderHairs(ctx, w, h, time, false);
+
+      ctx.restore();
+    }
+
+    renderHairs(ctx, w, h, time, foregroundOnly) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (let i = 0; i < this.hairs.length; i++) {
+        const hr = this.hairs[i];
+        const isFg = hr.v > 0.14;
+        if (isFg !== foregroundOnly) continue;
+
+        const sPt = this.getSurfacePoint(hr.u, w, h);
+        const rootX = sPt.x;
+        const rootY = sPt.y + hr.v * 135 * scaleFactor;
+        const len = hr.len * scaleFactor;
+        const breeze = Math.sin(time * 1.9 + hr.u * 15) * 0.035;
+        const ang = hr.baseAngle + hr.bendOffset + breeze;
+
+        const midX = rootX + Math.cos(ang) * (len * 0.55);
+        const midY = rootY + Math.sin(ang) * (len * 0.55);
+        const tipX = rootX + Math.cos(ang + hr.curve) * len;
+        const tipY = rootY + Math.sin(ang + hr.curve) * len;
+
+        ctx.fillStyle = `rgba(175, 102, 82, ${hr.alpha * 0.45})`;
+        ctx.beginPath();
+        ctx.ellipse(rootX, rootY, 2.8 * scaleFactor, 1.3 * scaleFactor, 0, 0, TAU);
+        ctx.fill();
+
+        const hGrad = ctx.createLinearGradient(rootX, rootY, tipX, tipY);
+        hGrad.addColorStop(0.0, `rgba(218, 165, 135, ${hr.alpha * 0.85})`);
+        hGrad.addColorStop(0.5, `rgba(255, 245, 230, ${hr.alpha})`);
+        hGrad.addColorStop(1.0, `rgba(255, 252, 245, 0)`);
+
+        ctx.strokeStyle = hGrad;
+        ctx.lineWidth = hr.thickness * scaleFactor;
+        ctx.beginPath();
+        ctx.moveTo(rootX, rootY);
+        ctx.quadraticCurveTo(midX, midY, tipX, tipY);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  // ============================================================================
+  // محاكاة الناموسة التشريحية، مص كريات "رغودا"، وفيزياء الهرس والموت عند اللمس
+  // ============================================================================
+  class MosquitoSimulation {
+    constructor(skin) {
+      this.skin = skin;
+      this.cycleDuration = 22.0;
+      this.cycleTime = 0;
+
+      this.thoraxWorld = { x: 0, y: 0 };
+      this.headWorld = { x: 0, y: 0 };
+      this.abdomenWorld = { x: 0, y: 0 };
+      this.currentFascicleTip = null;
+
+      this.pitch = 0;
+      this.engorgement = 0;
+      this.peristalsisPhase = 0;
+      this.pumpPulse = 0;
+      this.wingPhase = 0;
+      this.wingBeatAmplitude = 1;
+
+      // حالة الموت والهرس عند اللمس
+      this.isDead = false;
+      this.deathTimer = 0;
+      this.deathEngorgement = 0;
+      this.squashCompression = 0;
+      this.splatterParticles = [];
+      this.bloodPools = [];
+      this.dryDebris = [];
+
+      // كريات الدم "رغودا" داخل بطن الناموسة
+      this.bloodBoluses = [];
+      for (let i = 0; i < 14; i++) {
+        this.bloodBoluses.push({ progress: i / 14, size: 0.78 + (i % 3) * 0.18 });
+      }
+
+      // الأرجل الـ 6 المفصلية
+      this.legs = [
+        { id: 'fore_far', pair: 0, side: -1, uTarget: 0.345, l1: 68, l2: 76, l3: 44, kneeDir: -1, footX: 0, footY: 0, vx: 0, vy: 0, pressure: 0 },
+        { id: 'mid_far',  pair: 1, side: -1, uTarget: 0.505, l1: 78, l2: 88, l3: 52, kneeDir: 1,  footX: 0, footY: 0, vx: 0, vy: 0, pressure: 0 },
+        { id: 'hind_far', pair: 2, side: -1, uTarget: 0.655, l1: 92, l2: 108, l3: 72, kneeDir: 1, footX: 0, footY: 0, vx: 0, vy: 0, pressure: 0 },
+        { id: 'fore_near', pair: 0, side: 1, uTarget: 0.365, l1: 72, l2: 80, l3: 48, kneeDir: -1, footX: 0, footY: 0, vx: 0, vy: 0, pressure: 0 },
+        { id: 'mid_near',  pair: 1, side: 1, uTarget: 0.530, l1: 82, l2: 92, l3: 55, kneeDir: 1,  footX: 0, footY: 0, vx: 0, vy: 0, pressure: 0 },
+        { id: 'hind_near', pair: 2, side: 1, uTarget: 0.685, l1: 96, l2: 112, l3: 76, kneeDir: 1, footX: 0, footY: 0, vx: 0, vy: 0, pressure: 0 }
+      ];
+      this.legsInitialized = false;
+    }
+
+    // التحقق مما إذا كان اللمس/النقر أصاب الناموسة
+    checkHit(worldX, worldY) {
+      if (this.isDead) return false;
+      const r = 78 * scaleFactor;
+      const dThorax = Math.hypot(worldX - this.thoraxWorld.x, worldY - this.thoraxWorld.y);
+      const dAbdomen = Math.hypot(worldX - this.abdomenWorld.x, worldY - this.abdomenWorld.y);
+      const dHead = Math.hypot(worldX - this.headWorld.x, worldY - this.headWorld.y);
+      return (dThorax < r || dAbdomen < r * 1.15 || dHead < r * 0.85);
+    }
+
+    // قتل وهرس الناموسة وتوليد الدم حسب امتلاء بطنها فقط
+    squashMosquito() {
+      if (this.isDead) return;
+      this.isDead = true;
+      this.deathTimer = 0;
+      this.deathEngorgement = this.engorgement;
+      this.squashCompression = 0;
+      this.wingBeatAmplitude = 0;
+
+      this.splatterParticles = [];
+      this.bloodPools = [];
+      this.dryDebris = [];
+
+      const burstCenter = {
+        x: this.abdomenWorld.x,
+        y: this.abdomenWorld.y
+      };
+
+      // شظايا قشرية جافة بسيطة نتيجة الهرس (تحدث دائماً)
+      for (let i = 0; i < 14; i++) {
+        const ang = -Math.PI * 0.9 + Math.random() * Math.PI * 0.8;
+        const spd = (55 + Math.random() * 140) * scaleFactor;
+        this.dryDebris.push({
+          x: this.thoraxWorld.x + (Math.random() - 0.5) * 50 * scaleFactor,
+          y: this.thoraxWorld.y + (Math.random() - 0.5) * 20 * scaleFactor,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          size: (1.8 + Math.random() * 2.8) * scaleFactor,
+          rot: Math.random() * TAU,
+          vRot: (Math.random() - 0.5) * 14
+        });
+      }
+
+      // إذا كانت بطنها فيها دم (> 0.03) يخرج منها دم يتناسب مع كمية الدم في بطنها!
+      // أما لو بطنها فاضية (<= 0.03) فلا يخرج أي دم إطلاقاً (تنهرس بس)
+      if (this.deathEngorgement > 0.03) {
+        const bloodRatio = this.deathEngorgement;
+        const dropCount = Math.max(4, Math.round(bloodRatio * 75));
+        const raghoudaCellCount = Math.max(1, Math.round(bloodRatio * 14));
+
+        for (let i = 0; i < dropCount; i++) {
+          const ang = -Math.PI * 0.95 + Math.random() * Math.PI * 0.9;
+          const speed = (80 + Math.random() * 340 * (0.4 + 0.6 * bloodRatio)) * scaleFactor;
+          const isWordCell = i < raghoudaCellCount;
+          this.splatterParticles.push({
+            x: burstCenter.x + (Math.random() - 0.5) * 35 * scaleFactor,
+            y: burstCenter.y + (Math.random() - 0.5) * 20 * scaleFactor,
+            vx: Math.cos(ang) * speed,
+            vy: Math.sin(ang) * speed - 40 * scaleFactor,
+            r: (2.2 + Math.random() * 6.5 * (0.4 + 0.6 * bloodRatio)) * scaleFactor,
+            isWordCell,
+            rot: (Math.random() - 0.5) * 0.9,
+            landed: false
+          });
+        }
+
+        // تكوين بقعة دم على سطح الجلد تتناسب مساحتها مع كمية الدم في البطن
+        const surfPt = this.skin.getSurfacePoint(
+          clamp(burstCenter.x / width, 0.05, 0.95),
+          width,
+          height
+        );
+        this.bloodPools.push({
+          x: burstCenter.x,
+          y: surfPt.y + 6 * scaleFactor,
+          currentRadius: 4 * scaleFactor,
+          maxRadius: (18 + bloodRatio * 88) * scaleFactor,
+          alpha: 0.92
+        });
+      }
+    }
+
+    resetCycle() {
+      this.isDead = false;
+      this.deathTimer = 0;
+      this.deathEngorgement = 0;
+      this.squashCompression = 0;
+      this.engorgement = 0;
+      this.cycleTime = 0;
+      this.legsInitialized = false;
+      this.splatterParticles = [];
+      this.bloodPools = [];
+      this.dryDebris = [];
+    }
+
+    solve2BoneIK(hx, hy, tx, ty, L1, L2, kneeDir) {
+      const dx = tx - hx;
+      const dy = ty - hy;
+      const distSq = dx * dx + dy * dy;
+      const maxReach = (L1 + L2) * 0.992;
+      const minReach = Math.abs(L1 - L2) * 1.05;
+      const d = clamp(Math.sqrt(distSq), minReach, maxReach);
+
+      const baseAngle = Math.atan2(dy, dx);
+      const cosAngle1 = clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1);
+      const angle1 = baseAngle + kneeDir * Math.acos(cosAngle1);
+
+      return {
+        kx: hx + Math.cos(angle1) * L1,
+        ky: hy + Math.sin(angle1) * L1,
+        tx: hx + (dx / (Math.sqrt(distSq) || 1)) * d,
+        ty: hy + (dy / (Math.sqrt(distSq) || 1)) * d
+      };
+    }
+
+    updateAndRender(ctx, w, h, totalTime, dt) {
+      if (!this.isDead) {
+        const prevT = this.cycleTime;
+        this.cycleTime = (this.cycleTime + dt) % this.cycleDuration;
+        if (this.cycleTime < prevT) {
+          this.legsInitialized = false;
+        }
+      } else {
+        this.deathTimer += dt;
+        this.squashCompression = smoothstep(0.0, 0.12, this.deathTimer);
+        // عند انفجار البطن بالدم، يفرغ الدم منها تدريجياً إلى الخارج
+        if (this.deathEngorgement > 0.03) {
+          this.engorgement = lerp(this.deathEngorgement, this.deathEngorgement * 0.18, smoothstep(0, 0.25, this.deathTimer));
+        }
+        if (this.deathTimer > 3.8) {
+          this.resetCycle();
+        }
+      }
+
+      const t = this.cycleTime;
+      const fadeOutAlpha = this.isDead ? (1 - smoothstep(3.0, 3.8, this.deathTimer)) : 1.0;
+
+      const punctureAnchor = this.skin.getSurfacePoint(this.skin.punctureNormX, w, h);
+      const baseSurfaceY = h * this.skin.baseSurfaceRatio + Math.sin(this.skin.punctureNormX * Math.PI) * (-18 * scaleFactor);
+
+      // مراحل الحركة الدورية
+      const approachFactor = smootherstep(0.0, 3.6, t);
+      const landSettle = Math.sin(clamp((t - 3.2) * 3.5, 0, Math.PI)) * Math.exp(-Math.max(0, t - 3.2) * 2.2);
+
+      const prePierceCrouch = smootherstep(4.2, 5.3, t) * (1 - smootherstep(16.5, 17.5, t));
+      const pierceDepth = this.isDead
+        ? Math.max(0, (1 - this.squashCompression * 1.5) * smootherstep(5.1, 7.6, t) * (1 - smootherstep(16.6, 17.7, t)))
+        : smootherstep(5.1, 7.6, t) * (1 - smootherstep(16.6, 17.7, t));
+
+      const insertVibration = (!this.isDead && t > 5.0 && t < 7.2)
+        ? Math.sin(t * 68) * 2.4 * Math.sin(((t - 5.0) / 2.2) * Math.PI)
+        : 0;
+
+      // حساب امتلاء البطن بالدم أثناء التغذية
+      if (!this.isDead) {
+        if (t < 7.8) {
+          this.engorgement = 0;
+        } else if (t >= 7.8 && t <= 16.4) {
+          const rawFeed = clamp((t - 7.8) / (16.4 - 7.8), 0, 1);
+          const pumpStep = Math.sin(t * TAU * 3.4) * 0.008 * Math.sin(rawFeed * Math.PI);
+          this.engorgement = clamp(smootherstep(0, 1, rawFeed) + pumpStep, 0, 1);
+        } else {
+          this.engorgement = 1.0;
+        }
+      }
+
+      const isFeeding = !this.isDead && (t >= 7.6 && t <= 16.4);
+      const feedIntensity = isFeeding ? smootherstep(7.6, 8.3, t) * (1 - smootherstep(15.8, 16.4, t)) : 0;
+      this.pumpPulse = isFeeding ? (0.5 + 0.5 * Math.sin(t * TAU * 3.4)) * feedIntensity : 0;
+      if (!this.isDead) {
+        this.peristalsisPhase += dt * (1.2 + feedIntensity * 4.2);
+      }
+
+      const pullUpEffort = smootherstep(16.4, 17.3, t) * (1 - smootherstep(17.4, 18.0, t));
+      const takeoffProgress = smootherstep(17.5, 20.6, t);
+
+      // قوة ضغط الخرطوم أو ضغط الضربة عند الهرس على الجلد
+      let punctureForce = 0;
+      if (this.isDead) {
+        punctureForce = 42 * Math.exp(-this.deathTimer * 5.5);
+      } else if (t >= 4.9 && t < 16.5) {
+        const initialPress = smootherstep(4.9, 5.6, t) * (1 - 0.38 * smootherstep(5.7, 6.6, t));
+        punctureForce = (initialPress * 22 + this.pumpPulse * 2.2) + insertVibration * 0.4;
+      } else if (t >= 16.5 && t < 17.85) {
+        const retractNorm = (t - 16.5) / 1.35;
+        punctureForce = -14.5 * Math.sin(retractNorm * Math.PI);
+      }
+
+      const hoverStandX = punctureAnchor.x + 82 * scaleFactor;
+      const hoverStandY = baseSurfaceY - 116 * scaleFactor;
+
+      const startX = w * 0.88;
+      const startY = -140 * scaleFactor;
+      const hoverBob = (1 - approachFactor) * Math.sin(t * 9.5) * 6 * scaleFactor;
+
+      const heavyDip = Math.sin(clamp((t - 17.5) / 1.3, 0, 1) * Math.PI) * 22 * scaleFactor;
+      const exitX = hoverStandX - Math.pow(takeoffProgress, 1.45) * (w * 0.68);
+      const exitY = hoverStandY + heavyDip - Math.pow(takeoffProgress, 1.65) * (h * 0.88);
+
+      const crouchOffsetY = (
+        prePierceCrouch * 24 +
+        landSettle * 9 +
+        this.engorgement * 11 -
+        pullUpEffort * 19
+      ) * scaleFactor;
+
+      const crouchOffsetX = -prePierceCrouch * 8 * scaleFactor;
+
+      let thoraxX = lerp(startX, hoverStandX, approachFactor);
+      let thoraxY = lerp(startY, hoverStandY, approachFactor) + hoverBob + crouchOffsetY;
+
+      if (takeoffProgress > 0) {
+        thoraxX = exitX + crouchOffsetX;
+        thoraxY = exitY + crouchOffsetY;
+      } else {
+        thoraxX += crouchOffsetX;
+      }
+
+      // إذا انهرست الناموسة، تسقط وتلتصق بسطح الجلد مباشرة
+      if (this.isDead) {
+        const crushSurfacePt = this.skin.getSurfacePoint(clamp(thoraxX / w, 0.05, 0.95), w, h);
+        thoraxY = lerp(thoraxY, crushSurfacePt.y - 16 * scaleFactor, this.squashCompression);
+      }
+
+      const flightEntryPitch = (1 - approachFactor) * (-0.24 + 0.1 * Math.sin(t * 6));
+      const feedPitch = prePierceCrouch * 0.16 - this.engorgement * 0.14;
+      const takeoffPitch = takeoffProgress > 0
+        ? -0.28 * Math.sin(Math.min(1, takeoffProgress * 1.4) * Math.PI * 0.5)
+        : 0;
+      this.pitch = (flightEntryPitch + feedPitch + takeoffPitch - pullUpEffort * 0.12) * (1 - this.squashCompression * 0.85);
+
+      const isFlying = !this.isDead && ((t < 3.45) || (t > 17.15));
+      const targetWingAmp = isFlying ? 1.0 : 0.0;
+      this.wingBeatAmplitude = lerp(this.wingBeatAmplitude, targetWingAmp, clamp(dt * 12, 0, 1));
+      this.wingPhase += dt * (isFlying ? 185 : 15);
+
+      // تحديث الأرجل
+      const grounded = this.isDead ? 1.0 : smoothstep(2.9, 3.55, t) * (1 - smoothstep(17.35, 17.75, t));
+      const footContacts = [];
+
+      for (let i = 0; i < this.legs.length; i++) {
+        const leg = this.legs[i];
+        const surfPt = this.skin.getSurfacePoint(leg.uTarget, w, h);
+        const sideDepthOffset = (leg.side > 0 ? 10 : -5) * scaleFactor;
+
+        let targetFootX = surfPt.x + (this.isDead ? (leg.pair - 1) * 28 * scaleFactor * this.squashCompression : 0);
+        let targetFootY = surfPt.y + sideDepthOffset;
+
+        if (leg.pair === 2 && !this.isDead) {
+          const hindLift = smoothstep(5.5, 8.5, t) * (1 - smoothstep(15.5, 17.0, t)) * (leg.side < 0 ? 18 : 6) * scaleFactor;
+          targetFootY -= hindLift;
+          targetFootX += hindLift * 0.6;
+        }
+
+        const hipOffsetX = (leg.pair - 1) * 18 * scaleFactor;
+        const hipX = thoraxX + hipOffsetX;
+        const hipY = thoraxY + 18 * scaleFactor;
+
+        const airLagX = (leg.pair - 0.6) * 48 * scaleFactor + (takeoffProgress > 0 ? 45 * scaleFactor : 0);
+        const airLagY = (118 + leg.pair * 16 + Math.sin(totalTime * 11 + i) * 6) * scaleFactor;
+        const airFootX = hipX + airLagX;
+        const airFootY = hipY + airLagY;
+
+        const desiredX = lerp(airFootX, targetFootX, grounded);
+        const desiredY = lerp(airFootY, targetFootY, grounded);
+
+        if (!this.legsInitialized) {
+          leg.footX = desiredX;
+          leg.footY = desiredY;
+          leg.vx = 0;
+          leg.vy = 0;
+        } else {
+          const kSpring = grounded > 0.5 ? 320 : 120;
+          const kDamp = grounded > 0.5 ? 24 : 14;
+          leg.vx += ((desiredX - leg.footX) * kSpring - leg.vx * kDamp) * dt;
+          leg.vy += ((desiredY - leg.footY) * kSpring - leg.vy * kDamp) * dt;
+          leg.footX += leg.vx * dt;
+          leg.footY += leg.vy * dt;
+        }
+
+        leg.pressure = grounded * (1 + prePierceCrouch * 0.65 + this.engorgement * 0.85 + this.squashCompression * 2.0);
+        footContacts.push({ u: leg.uTarget, pressure: leg.pressure });
+      }
+      this.legsInitialized = true;
+
+      // تحديث الجلد والعرق الدموي الكبير
+      const erythemaTarget = clamp(smoothstep(5.5, 14.0, t) * (1 - smoothstep(19.0, 21.8, t)), 0, 1);
+      this.skin.update(dt, punctureForce, footContacts, erythemaTarget);
+
+      // رسم الجلد والعرق الدموي الكبير وكريات "رغودا"
+      this.skin.render(ctx, w, h, totalTime, dt, feedIntensity, this.currentFascicleTip);
+
+      // رسم بقع الدم على الجلد (إن وجدت بعد الهرس)
+      this.updateAndRenderBloodSplatter(ctx, w, h, dt, fadeOutAlpha);
+
+      const cosP = Math.cos(this.pitch);
+      const sinP = Math.sin(this.pitch);
+      const squashScaleY = 1 - this.squashCompression * 0.68;
+      const squashScaleX = 1 + this.squashCompression * 0.28;
+
+      const toWorld = (lx, ly) => {
+        const sx = lx * squashScaleX;
+        const sy = ly * squashScaleY;
+        return {
+          x: thoraxX + (sx * cosP - sy * sinP) * scaleFactor,
+          y: thoraxY + (sx * sinP + sy * cosP) * scaleFactor
+        };
+      };
+
+      const headCenter = toWorld(-52, 10 + insertVibration * 0.25);
+      const proboscisBase = toWorld(-68, 16 + insertVibration * 0.35);
+      const abdomenBase = toWorld(36, 4);
+
+      // حفظ المواقع العالمية لفحص اللمس بدقة
+      this.thoraxWorld = { x: thoraxX, y: thoraxY };
+      this.headWorld = headCenter;
+      this.abdomenWorld = toWorld(95, 18);
+
+      ctx.save();
+      ctx.globalAlpha = fadeOutAlpha;
+
+      // ظل الناموسة على الجلد
+      this.renderSkinShadow(ctx, thoraxX, thoraxY, punctureAnchor, grounded);
+
+      // 1. الأرجل الخلفية
+      for (let i = 0; i < 3; i++) {
+        this.renderLeg(ctx, this.legs[i], toWorld, false);
+      }
+
+      // 2. الجناح الخلفي
+      this.renderWing(ctx, toWorld(8, -14), -1, totalTime);
+
+      // 3. الخرطوم والقناة الماصة للدم
+      this.renderProboscisAssembly(ctx, w, h, proboscisBase, punctureAnchor, pierceDepth, feedIntensity, totalTime);
+
+      // 4. البطن المقسمة مع امتلاء الدم وكريات "رغودا"
+      this.renderAbdomen(ctx, abdomenBase, totalTime, takeoffProgress);
+
+      // 5. الصدر
+      this.renderThorax(ctx, thoraxX, thoraxY, toWorld, totalTime);
+
+      // 6. الرأس والعيون المركبة وقرون الاستشعار
+      this.renderHead(ctx, headCenter, proboscisBase, totalTime, t, feedIntensity);
+
+      // 7. الجناح الأمامي
+      this.renderWing(ctx, toWorld(12, -10), 1, totalTime);
+
+      // 8. الأرجل الأمامية
+      for (let i = 3; i < 6; i++) {
+        this.renderLeg(ctx, this.legs[i], toWorld, true);
+      }
+
+      ctx.restore();
+
+      // 9. شعيرات الجلد الأمامية
+      this.skin.renderHairs(ctx, w, h, totalTime, true);
+    }
+
+    // تحديث ورسم تناثر الدم (فقط إذا كانت بطنها تحتوي على دم عند الهرس)
+    updateAndRenderBloodSplatter(ctx, w, h, dt, fadeOutAlpha) {
+      if (!this.isDead) return;
+
+      ctx.save();
+      ctx.globalAlpha = fadeOutAlpha;
+
+      // 1. بركة الدم على سطح الجلد (إذا كان في بطنها دم)
+      for (let i = 0; i < this.bloodPools.length; i++) {
+        const pool = this.bloodPools[i];
+        pool.currentRadius = lerp(pool.currentRadius, pool.maxRadius, clamp(dt * 9, 0, 1));
+
+        const pGrad = ctx.createRadialGradient(
+          pool.x, pool.y, pool.currentRadius * 0.1,
+          pool.x, pool.y, pool.currentRadius
+        );
+        pGrad.addColorStop(0.0, 'rgba(175, 6, 22, 0.92)');
+        pGrad.addColorStop(0.65, 'rgba(215, 14, 34, 0.82)');
+        pGrad.addColorStop(0.92, 'rgba(190, 10, 28, 0.45)');
+        pGrad.addColorStop(1.0, 'rgba(190, 10, 28, 0)');
+
+        ctx.fillStyle = pGrad;
+        ctx.beginPath();
+        ctx.ellipse(pool.x, pool.y, pool.currentRadius, pool.currentRadius * 0.22, 0.02, 0, TAU);
+        ctx.fill();
+      }
+
+      // 2. قطرات الدم المتطايرة وكريات "رغودا" المنفجرة من البطن
+      const gravity = 780 * scaleFactor;
+      for (let i = 0; i < this.splatterParticles.length; i++) {
+        const sp = this.splatterParticles[i];
+        if (!sp.landed) {
+          sp.vy += gravity * dt;
+          sp.x += sp.vx * dt;
+          sp.y += sp.vy * dt;
+
+          const surfPt = this.skin.getSurfacePoint(clamp(sp.x / w, 0, 1), w, h);
+          if (sp.y >= surfPt.y + 4 * scaleFactor) {
+            sp.y = surfPt.y + 4 * scaleFactor;
+            sp.landed = true;
+          }
+        }
+
+        if (sp.isWordCell) {
+          this.skin.drawRaghoudaCell(
+            ctx,
+            sp.x,
+            sp.y,
+            sp.landed ? 0.05 : sp.rot,
+            sp.landed ? 0.72 : 0.85,
+            0.94
+          );
+        } else {
+          ctx.fillStyle = 'rgba(200, 10, 26, 0.9)';
+          ctx.beginPath();
+          if (sp.landed) {
+            ctx.ellipse(sp.x, sp.y, sp.r * 1.5, sp.r * 0.45, 0, 0, TAU);
+          } else {
+            ctx.arc(sp.x, sp.y, sp.r, 0, TAU);
+          }
+          ctx.fill();
+        }
+      }
+
+      // 3. شظايا القشرة الجافة عند الهرس
+      for (let i = 0; i < this.dryDebris.length; i++) {
+        const db = this.dryDebris[i];
+        const surfPt = this.skin.getSurfacePoint(clamp(db.x / w, 0, 1), w, h);
+        if (db.y < surfPt.y + 2 * scaleFactor) {
+          db.vy += gravity * 0.7 * dt;
+          db.x += db.vx * dt;
+          db.y += db.vy * dt;
+          db.rot += db.vRot * dt;
+        }
+        ctx.save();
+        ctx.translate(db.x, db.y);
+        ctx.rotate(db.rot);
+        ctx.fillStyle = 'rgba(62, 46, 38, 0.78)';
+        ctx.fillRect(-db.size * 0.5, -db.size * 0.3, db.size, db.size * 0.6);
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+
+    renderSkinShadow(ctx, thoraxX, thoraxY, punctureAnchor, grounded) {
+      const distFactor = clamp(1 - (punctureAnchor.y - thoraxY) / (340 * scaleFactor), 0, 1);
+      if (distFactor <= 0.01) return;
+
+      ctx.save();
+      const shX = thoraxX + 25 * scaleFactor;
+      const shY = punctureAnchor.y + 18 * scaleFactor;
+      const rx = (145 + (1 - distFactor) * 90) * scaleFactor;
+      const ry = (22 + (1 - distFactor) * 15) * scaleFactor;
+
+      const shGrad = ctx.createRadialGradient(shX, shY, rx * 0.1, shX, shY, rx);
+      const alpha = (0.14 + 0.12 * grounded + this.engorgement * 0.08) * distFactor;
+      shGrad.addColorStop(0.0, `rgba(115, 52, 38, ${alpha})`);
+      shGrad.addColorStop(0.6, `rgba(135, 65, 48, ${alpha * 0.45})`);
+      shGrad.addColorStop(1.0, 'rgba(135, 65, 48, 0)');
+
+      ctx.fillStyle = shGrad;
+      ctx.beginPath();
+      ctx.ellipse(shX, shY, rx, ry, 0.03, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    renderLeg(ctx, leg, toWorld, isNear) {
+      const hipLocalX = (leg.pair - 1) * 19 + (isNear ? 3 : -3);
+      const hipLocalY = 18 + (isNear ? 4 : 0);
+      const hip = toWorld(hipLocalX, hipLocalY);
+
+      const L1 = leg.l1 * scaleFactor;
+      const L2 = leg.l2 * scaleFactor;
+
+      const ankleX = leg.footX + (leg.pair === 0 ? 14 : -18) * scaleFactor;
+      const ankleY = leg.footY - (12 * (1 - this.squashCompression * 0.75)) * scaleFactor;
+
+      const ik = this.solve2BoneIK(hip.x, hip.y, ankleX, ankleY, L1, L2, leg.kneeDir);
+
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      const baseAlpha = isNear ? 0.96 : 0.72;
+      const chitinColor = isNear ? `rgba(54, 42, 36, ${baseAlpha})` : `rgba(82, 66, 58, ${baseAlpha})`;
+      const highlightColor = `rgba(255, 246, 232, ${isNear ? 0.75 : 0.45})`;
+
+      ctx.fillStyle = chitinColor;
+      ctx.beginPath();
+      ctx.ellipse(hip.x, hip.y, 6.5 * scaleFactor, 4.5 * scaleFactor, 0.3, 0, TAU);
+      ctx.fill();
+
+      ctx.strokeStyle = chitinColor;
+      ctx.lineWidth = (isNear ? 5.2 : 4.2) * scaleFactor;
+      ctx.beginPath();
+      ctx.moveTo(hip.x, hip.y);
+      ctx.lineTo(ik.kx, ik.ky);
+      ctx.stroke();
+
+      ctx.strokeStyle = highlightColor;
+      ctx.lineWidth = 1.4 * scaleFactor;
+      ctx.beginPath();
+      ctx.moveTo(hip.x, hip.y - 1.2 * scaleFactor);
+      ctx.lineTo(ik.kx, ik.ky - 1.2 * scaleFactor);
+      ctx.stroke();
+
+      ctx.fillStyle = `rgba(250, 246, 240, ${baseAlpha})`;
+      ctx.beginPath();
+      ctx.arc(ik.kx, ik.ky, 3.2 * scaleFactor, 0, TAU);
+      ctx.fill();
+
+      ctx.strokeStyle = chitinColor;
+      ctx.lineWidth = (isNear ? 3.8 : 3.1) * scaleFactor;
+      ctx.beginPath();
+      ctx.moveTo(ik.kx, ik.ky);
+      ctx.lineTo(ik.tx, ik.ty);
+      ctx.stroke();
+
+      for (let b = 1; b <= 3; b++) {
+        const bt = b * 0.26;
+        const bx = lerp(ik.kx, ik.tx, bt);
+        const by = lerp(ik.ky, ik.ty, bt);
+        ctx.strokeStyle = `rgba(248, 242, 234, ${baseAlpha * 0.85})`;
+        ctx.lineWidth = (isNear ? 4.1 : 3.3) * scaleFactor;
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(lerp(ik.kx, ik.tx, bt + 0.045), lerp(ik.ky, ik.ty, bt + 0.045));
+        ctx.stroke();
+      }
+
+      const toeTipX = leg.footX + (leg.pair === 0 ? -24 : 28) * scaleFactor;
+      const toeTipY = leg.footY - (leg.pair === 2 ? 4 : 1.5) * scaleFactor;
+
+      ctx.strokeStyle = chitinColor;
+      ctx.lineWidth = (isNear ? 2.6 : 2.1) * scaleFactor;
+      ctx.beginPath();
+      ctx.moveTo(ik.tx, ik.ty);
+      ctx.quadraticCurveTo(leg.footX, leg.footY + 2 * scaleFactor, toeTipX, toeTipY);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    renderProboscisAssembly(ctx, w, h, basePt, puncturePt, pierceDepth, feedIntensity, time) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      const restTipX = basePt.x - 42 * scaleFactor;
+      const restTipY = basePt.y + (84 * (1 - this.squashCompression * 0.8)) * scaleFactor;
+
+      const contactInfluence = smoothstep(0.0, 0.15, pierceDepth);
+      const surfaceTipX = lerp(restTipX, puncturePt.x, contactInfluence);
+      const surfaceTipY = lerp(restTipY, puncturePt.y + 2 * scaleFactor, contactInfluence);
+
+      this.currentFascicleTip = null;
+
+      // 1. الإبرة المخترقة تحت الجلد والواصلة إلى العرق الدموي الكبير
+      if (pierceDepth > 0.05) {
+        const subProgress = smoothstep(0.08, 1.0, pierceDepth);
+        const vesselTarget = this.skin.getTargetVesselPoint(w, h);
+
+        const probeWiggle = (pierceDepth > 0.2 && pierceDepth < 0.85 && feedIntensity < 0.2)
+          ? Math.sin(time * 24) * 5.5 * scaleFactor
+          : 0;
+
+        const fascicleTipX = lerp(puncturePt.x, vesselTarget.x + probeWiggle, subProgress);
+        const fascicleTipY = lerp(puncturePt.y, vesselTarget.y, subProgress);
+        const ctrlX = puncturePt.x - 6 * scaleFactor;
+        const ctrlY = lerp(puncturePt.y, vesselTarget.y, 0.55);
+
+        this.currentFascicleTip = { x: fascicleTipX, y: fascicleTipY };
+
+        ctx.strokeStyle = 'rgba(195, 55, 52, 0.28)';
+        ctx.lineWidth = 6.5 * scaleFactor;
+        ctx.beginPath();
+        ctx.moveTo(puncturePt.x, puncturePt.y);
+        ctx.quadraticCurveTo(ctrlX, ctrlY, fascicleTipX, fascicleTipY);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(135, 62, 42, 0.78)';
+        ctx.lineWidth = 3.0 * scaleFactor;
+        ctx.stroke();
+
+        if (feedIntensity > 0.01) {
+          ctx.strokeStyle = `rgba(225, 15, 45, ${0.55 + 0.45 * feedIntensity})`;
+          ctx.lineWidth = (2.0 + 1.1 * this.pumpPulse) * scaleFactor;
+          ctx.stroke();
+        }
+      }
+
+      // 2. الجزء العلوي من الخرطوم فوق الجلد
+      ctx.strokeStyle = '#4e3529';
+      ctx.lineWidth = 2.8 * scaleFactor;
+      ctx.beginPath();
+      ctx.moveTo(basePt.x, basePt.y);
+      ctx.lineTo(surfaceTipX, surfaceTipY);
+      ctx.stroke();
+
+      // صعود كريات الدم "رغودا" عبر الخرطوم أثناء المص
+      if (feedIntensity > 0.01) {
+        ctx.strokeStyle = `rgba(235, 20, 50, ${0.7 + 0.3 * this.pumpPulse})`;
+        ctx.lineWidth = (1.8 + 0.9 * this.pumpPulse) * scaleFactor;
+        ctx.beginPath();
+        ctx.moveTo(surfaceTipX, surfaceTipY);
+        ctx.lineTo(basePt.x, basePt.y);
+        ctx.stroke();
+
+        for (let b = 0; b < 3; b++) {
+          const bp = ((time * 3.8 + b * 0.33) % 1);
+          const bx = lerp(surfaceTipX, basePt.x, bp);
+          const by = lerp(surfaceTipY, basePt.y, bp);
+          this.skin.drawRaghoudaCell(ctx, bx, by, -Math.PI * 0.35, 0.45, 0.9);
+        }
+      }
+
+      // 3. الغمد الخارجي المنحني للخرطوم (Labium)
+      const buckleAmount = smoothstep(0.08, 0.95, pierceDepth) * 44 * scaleFactor;
+      const dx = surfaceTipX - basePt.x;
+      const dy = surfaceTipY - basePt.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+
+      const midX = lerp(basePt.x, surfaceTipX, 0.52) - nx * buckleAmount;
+      const midY = lerp(basePt.y, surfaceTipY, 0.52) - ny * buckleAmount;
+
+      ctx.strokeStyle = '#362720';
+      ctx.lineWidth = 4.6 * scaleFactor;
+      ctx.beginPath();
+      ctx.moveTo(basePt.x, basePt.y);
+      ctx.quadraticCurveTo(midX, midY, surfaceTipX, surfaceTipY);
+      ctx.stroke();
+
+      ctx.fillStyle = '#2d1f19';
+      ctx.beginPath();
+      ctx.ellipse(surfaceTipX, surfaceTipY, 3.8 * scaleFactor, 2.6 * scaleFactor, 0.3, 0, TAU);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    renderAbdomen(ctx, basePt, time, takeoffProgress) {
+      ctx.save();
+
+      const numSegs = 8;
+      const squashLenBoost = 1 + this.squashCompression * 0.24;
+      const squashFlatFactor = 1 - this.squashCompression * 0.72;
+
+      const totalLen = (138 + this.engorgement * 24) * squashLenBoost * scaleFactor;
+      const gravityDroop = (this.engorgement * 0.28 + takeoffProgress * 0.22) * squashFlatFactor;
+      const baseAngle = this.pitch * 0.65 + 0.08 + gravityDroop;
+
+      const spine = [];
+      let currX = basePt.x;
+      let currY = basePt.y;
+
+      for (let i = 0; i <= numSegs; i++) {
+        const u = i / numSegs;
+        const wave = Math.sin(this.peristalsisPhase - u * 4.5) * (1.2 + this.engorgement * 2.4) * squashFlatFactor * scaleFactor;
+        const segAngle = baseAngle + u * (0.14 + this.engorgement * 0.18) * squashFlatFactor;
+
+        const profileShape = Math.sin(Math.pow(u, 0.72) * Math.PI * 0.94);
+        const unfedHalfH = (4.5 + 11.5 * profileShape) * scaleFactor;
+        const engorgedHalfH = (6.0 + 38.5 * Math.pow(profileShape, 0.85)) * scaleFactor;
+
+        const peristalsisPulse = 1 + 0.065 * Math.sin(this.peristalsisPhase * 1.4 - u * 5.2) * (0.25 + 0.75 * this.engorgement);
+        const halfH = lerp(unfedHalfH, engorgedHalfH, this.engorgement) * peristalsisPulse * squashFlatFactor;
+
+        const dorsalRadius = unfedHalfH * (1 + this.engorgement * 0.42) * peristalsisPulse * squashFlatFactor;
+        const ventralRadius = Math.max(2 * scaleFactor, halfH * 2.0 - dorsalRadius);
+
+        const nx = -Math.sin(segAngle);
+        const ny = Math.cos(segAngle);
+
+        spine.push({
+          u,
+          cx: currX + nx * wave * 0.3,
+          cy: currY + ny * wave,
+          angle: segAngle,
+          dorsalR: dorsalRadius,
+          ventralR: ventralRadius,
+          topX: currX + nx * (-dorsalRadius),
+          topY: currY + ny * (-dorsalRadius),
+          botX: currX + nx * (ventralRadius),
+          botY: currY + ny * (ventralRadius)
+        });
+
+        const stepLen = totalLen / numSegs;
+        currX += Math.cos(segAngle) * stepLen;
+        currY += Math.sin(segAngle) * stepLen;
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(spine[0].topX, spine[0].topY);
+      for (let i = 1; i <= numSegs; i++) {
+        const prev = spine[i - 1];
+        const curr = spine[i];
+        const mx = (prev.topX + curr.topX) * 0.5;
+        const my = (prev.topY + curr.topY) * 0.5;
+        ctx.quadraticCurveTo(prev.topX, prev.topY, mx, my);
+      }
+      ctx.lineTo(spine[numSegs].topX, spine[numSegs].topY);
+
+      const tipX = spine[numSegs].cx + Math.cos(spine[numSegs].angle) * 10 * scaleFactor;
+      const tipY = spine[numSegs].cy + Math.sin(spine[numSegs].angle) * 10 * scaleFactor;
+      ctx.quadraticCurveTo(tipX, tipY, spine[numSegs].botX, spine[numSegs].botY);
+
+      for (let i = numSegs - 1; i >= 0; i--) {
+        const next = spine[i + 1];
+        const curr = spine[i];
+        const mx = (next.botX + curr.botX) * 0.5;
+        const my = (next.botY + curr.botY) * 0.5;
+        ctx.quadraticCurveTo(next.botX, next.botY, mx, my);
+      }
+      ctx.lineTo(spine[0].botX, spine[0].botY);
+      ctx.closePath();
+
+      const midSpine = spine[4];
+      const abdGrad = ctx.createRadialGradient(
+        midSpine.cx - 8 * scaleFactor, midSpine.cy + midSpine.ventralR * 0.25, 4 * scaleFactor,
+        midSpine.cx, midSpine.cy, (55 + this.engorgement * 45) * scaleFactor
+      );
+
+      const e = this.engorgement;
+      const rCore = Math.round(lerp(212, 235, e));
+      const gCore = Math.round(lerp(186, 18, e));
+      const bCore = Math.round(lerp(158, 32, e));
+      const aCore = lerp(0.76, 0.95, e);
+
+      const rMid = Math.round(lerp(158, 168, e));
+      const gMid = Math.round(lerp(132, 8, e));
+      const bMid = Math.round(lerp(110, 18, e));
+      const aMid = lerp(0.82, 0.97, e);
+
+      const rEdge = Math.round(lerp(92, 88, e));
+      const gEdge = Math.round(lerp(74, 6, e));
+      const bEdge = Math.round(lerp(62, 12, e));
+
+      abdGrad.addColorStop(0.0, `rgba(${rCore}, ${gCore}, ${bCore}, ${aCore})`);
+      abdGrad.addColorStop(0.55, `rgba(${rMid}, ${gMid}, ${bMid}, ${aMid})`);
+      abdGrad.addColorStop(1.0, `rgba(${rEdge}, ${gEdge}, ${bEdge}, 0.96)`);
+
+      ctx.fillStyle = abdGrad;
+      ctx.fill();
+
+      ctx.save();
+      ctx.clip();
+
+      if (this.engorgement > 0.02 && !this.isDead) {
+        const glowX = lerp(spine[0].cx, midSpine.cx, Math.min(1, this.engorgement * 1.2));
+        const glowY = lerp(spine[0].cy, midSpine.cy + midSpine.ventralR * 0.3, Math.min(1, this.engorgement * 1.2));
+        const bloodRadius = (18 + this.engorgement * 105) * scaleFactor;
+
+        const rubyGlow = ctx.createRadialGradient(
+          glowX, glowY, 2 * scaleFactor,
+          glowX, glowY, bloodRadius
+        );
+        rubyGlow.addColorStop(0.0, `rgba(255, 48, 68, ${0.85 * Math.min(1, e * 1.8)})`);
+        rubyGlow.addColorStop(0.45, `rgba(205, 10, 28, ${0.82 * Math.min(1, e * 1.5)})`);
+        rubyGlow.addColorStop(0.82, `rgba(120, 4, 12, ${0.75 * e})`);
+        rubyGlow.addColorStop(1.0, 'rgba(90, 4, 10, 0)');
+
+        ctx.fillStyle = rubyGlow;
+        ctx.fillRect(basePt.x - 20 * scaleFactor, basePt.y - 80 * scaleFactor, 240 * scaleFactor, 220 * scaleFactor);
+
+        // ظهور كريات "رغودا" وهي تملأ بطن الناموسة الشفافة
+        for (let b = 0; b < this.bloodBoluses.length; b++) {
+          const bolus = this.bloodBoluses[b];
+          const p = (bolus.progress + this.peristalsisPhase * 0.05) % 1;
+          if (p <= this.engorgement * 0.92) {
+            const idxF = p * (numSegs - 1);
+            const idx0 = Math.floor(idxF);
+            const s0 = spine[idx0];
+            const s1 = spine[idx0 + 1] || s0;
+            const frac = idxF - idx0;
+            const bx = lerp(s0.cx, s1.cx, frac);
+            const by = lerp(s0.cy, s1.cy, frac) + lerp(s0.ventralR, s1.ventralR, frac) * (0.15 + (b % 3) * 0.14);
+            this.skin.drawRaghoudaCell(ctx, bx, by, s0.angle, 0.52 * (0.65 + 0.45 * this.engorgement), 0.72 * this.engorgement);
+          }
+        }
+      }
+
+      for (let i = 0; i < numSegs; i++) {
+        const s0 = spine[i];
+        const s1 = spine[i + 1];
+
+        ctx.fillStyle = 'rgba(48, 35, 28, 0.78)';
+        ctx.beginPath();
+        ctx.moveTo(s0.topX, s0.topY);
+        ctx.lineTo(s1.topX, s1.topY);
+        ctx.lineTo(s1.cx, s1.topY + s1.dorsalR * 0.95);
+        ctx.lineTo(s0.cx, s0.topY + s0.dorsalR * 0.95);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(250, 244, 236, 0.72)';
+        ctx.lineWidth = 2.4 * scaleFactor;
+        ctx.beginPath();
+        ctx.moveTo(s0.topX, s0.topY);
+        ctx.lineTo(s0.cx, s0.topY + s0.dorsalR * 0.85);
+        ctx.stroke();
+
+        ctx.strokeStyle = `rgba(42, 18, 16, ${0.35 - 0.15 * this.engorgement})`;
+        ctx.lineWidth = 1.2 * scaleFactor;
+        ctx.beginPath();
+        ctx.moveTo(s1.topX, s1.topY);
+        ctx.quadraticCurveTo(s1.cx + 3 * scaleFactor, s1.cy, s1.botX, s1.botY);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+      ctx.restore();
+    }
+
+    renderThorax(ctx, thoraxX, thoraxY, toWorld, time) {
+      ctx.save();
+      ctx.translate(thoraxX, thoraxY);
+      ctx.rotate(this.pitch);
+      ctx.scale(1 + this.squashCompression * 0.25, 1 - this.squashCompression * 0.65);
+
+      const rx = 44 * scaleFactor;
+      const ry = 29 * scaleFactor;
+
+      const thxGrad = ctx.createRadialGradient(
+        -10 * scaleFactor, -12 * scaleFactor, 4 * scaleFactor,
+        0, 0, rx * 1.1
+      );
+      thxGrad.addColorStop(0.0, '#7c6252');
+      thxGrad.addColorStop(0.45, '#4e3b30');
+      thxGrad.addColorStop(0.85, '#33251e');
+      thxGrad.addColorStop(1.0, '#241914');
+
+      ctx.fillStyle = thxGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, -0.12, 0, TAU);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(248, 242, 232, 0.78)';
+      ctx.lineWidth = 2.2 * scaleFactor;
+      ctx.beginPath();
+      ctx.moveTo(-28 * scaleFactor, -14 * scaleFactor);
+      ctx.bezierCurveTo(
+        -8 * scaleFactor, -24 * scaleFactor,
+        14 * scaleFactor, -20 * scaleFactor,
+        34 * scaleFactor, -6 * scaleFactor
+      );
+      ctx.stroke();
+
+      const patches = [
+        { x: -14, y: 4, r: 4.2 },
+        { x: 2, y: 8, r: 4.8 },
+        { x: 16, y: 5, r: 3.6 },
+        { x: -4, y: -2, r: 3.2 }
+      ];
+      ctx.fillStyle = 'rgba(248, 243, 236, 0.75)';
+      for (let i = 0; i < patches.length; i++) {
+        const p = patches[i];
+        ctx.beginPath();
+        ctx.ellipse(p.x * scaleFactor, p.y * scaleFactor, p.r * scaleFactor, p.r * 0.65 * scaleFactor, -0.2, 0, TAU);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    renderHead(ctx, headPt, proboscisBase, totalTime, cycleTime, feedIntensity) {
+      ctx.save();
+      ctx.translate(headPt.x, headPt.y);
+      ctx.rotate(this.pitch);
+      ctx.scale(1 + this.squashCompression * 0.2, 1 - this.squashCompression * 0.6);
+
+      const pumpBulge = this.pumpPulse * 2.6 * scaleFactor;
+      const isSensing = !this.isDead && (cycleTime > 3.5 && cycleTime < 8.5);
+      const twitchRate = isSensing ? 28 : 9;
+      const twitchAmp = this.isDead ? 0 : (isSensing ? 0.14 : 0.04);
+
+      for (let side = -1; side <= 1; side += 2) {
+        const antTwitch = Math.sin(totalTime * twitchRate + side * 1.4) * twitchAmp;
+        const baseX = -12 * scaleFactor;
+        const baseY = (-6 + side * 3) * scaleFactor;
+
+        ctx.fillStyle = side > 0 ? '#3e2d25' : '#58443a';
+        ctx.beginPath();
+        ctx.arc(baseX, baseY, 4.8 * scaleFactor, 0, TAU);
+        ctx.fill();
+
+        const len = 58 * scaleFactor;
+        const ang = -2.35 + side * 0.22 + antTwitch - this.squashCompression * 0.5;
+        const midX = baseX + Math.cos(ang) * len * 0.52;
+        const midY = baseY + Math.sin(ang) * len * 0.52;
+        const tipX = baseX + Math.cos(ang - 0.32) * len;
+        const tipY = baseY + Math.sin(ang - 0.32) * len;
+
+        ctx.strokeStyle = side > 0 ? 'rgba(48, 35, 28, 0.92)' : 'rgba(78, 60, 50, 0.65)';
+        ctx.lineWidth = 1.6 * scaleFactor;
+        ctx.beginPath();
+        ctx.moveTo(baseX, baseY);
+        ctx.quadraticCurveTo(midX, midY, tipX, tipY);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = '#3d2c24';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, (16 + pumpBulge * 0.4) * scaleFactor, (14 + pumpBulge * 0.5) * scaleFactor, 0.1, 0, TAU);
+      ctx.fill();
+
+      const eyeX = -3 * scaleFactor;
+      const eyeY = -1 * scaleFactor;
+      const eyeR = 10.5 * scaleFactor;
+
+      const eyeGrad = ctx.createRadialGradient(
+        eyeX - 3 * scaleFactor, eyeY - 3 * scaleFactor, 1 * scaleFactor,
+        eyeX, eyeY, eyeR
+      );
+      eyeGrad.addColorStop(0.0, '#4c2624');
+      eyeGrad.addColorStop(0.55, '#241110');
+      eyeGrad.addColorStop(0.9, '#120808');
+      eyeGrad.addColorStop(1.0, '#2a1c18');
+
+      ctx.fillStyle = eyeGrad;
+      ctx.beginPath();
+      ctx.ellipse(eyeX, eyeY, eyeR * 0.92, eyeR * 1.08, 0.18, 0, TAU);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(248, 242, 232, 0.72)';
+      ctx.lineWidth = 1.5 * scaleFactor;
+      ctx.beginPath();
+      ctx.ellipse(eyeX, eyeY, eyeR * 0.96, eyeR * 1.12, 0.18, -1.2, 1.4);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    renderWing(ctx, rootPt, side, time) {
+      ctx.save();
+      ctx.translate(rootPt.x, rootPt.y);
+
+      const wingLen = (132 + side * 6) * scaleFactor;
+      const wingWidth = 34 * scaleFactor;
+
+      const crumpledOffset = this.squashCompression * (side > 0 ? -0.42 : 0.35);
+      const restAngle = this.pitch + 0.04 + side * 0.03 + crumpledOffset;
+      const passes = this.wingBeatAmplitude > 0.08 ? 3 : 1;
+
+      for (let p = 0; p < passes; p++) {
+        ctx.save();
+        const phaseOffset = p * 0.65;
+        const flap = Math.sin(this.wingPhase + phaseOffset + side * 0.35) * 0.68 * this.wingBeatAmplitude;
+        const angle = restAngle + flap - this.wingBeatAmplitude * 0.35;
+        ctx.rotate(angle);
+
+        const alphaScale = passes > 1 ? (p === 0 ? 0.48 : 0.24) : (side > 0 ? 0.85 : 0.62);
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.bezierCurveTo(
+          wingLen * 0.35, -wingWidth * 0.58,
+          wingLen * 0.85, -wingWidth * 0.42,
+          wingLen, 0
+        );
+        ctx.bezierCurveTo(
+          wingLen * 0.82, wingWidth * 0.68,
+          wingLen * 0.28, wingWidth * 0.55,
+          0, 3 * scaleFactor
+        );
+        ctx.closePath();
+
+        const wGrad = ctx.createLinearGradient(0, -wingWidth * 0.5, wingLen, wingWidth * 0.5);
+        wGrad.addColorStop(0.0, `rgba(238, 228, 215, ${0.26 * alphaScale})`);
+        wGrad.addColorStop(0.45, `rgba(245, 252, 255, ${0.32 * alphaScale})`);
+        wGrad.addColorStop(0.75, `rgba(255, 240, 248, ${0.28 * alphaScale})`);
+        wGrad.addColorStop(1.0, `rgba(230, 215, 200, ${0.22 * alphaScale})`);
+        ctx.fillStyle = wGrad;
+        ctx.fill();
+
+        ctx.strokeStyle = `rgba(68, 50, 40, ${0.72 * alphaScale})`;
+        ctx.lineWidth = 1.8 * scaleFactor;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(wingLen * 0.5, -wingWidth * 0.42, wingLen, 0);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+  }
+
+  // ============================================================================
+  // تهيئة المشهد والتفاعل باللمس أو الماوس
+  // ============================================================================
+  const atmosphere = new StudioAtmosphere();
+  const skin = new HumanSkinSimulation();
+  const mosquito = new MosquitoSimulation(skin);
+
+  // متغيرات الكاميرا لتحويل إحداثيات اللمس بدقة
+  let currentCam = {
+    focusX: 0,
+    focusY: 0,
+    breathX: 0,
+    breathY: 0,
+    zoom: 1
+  };
+
+  function screenToWorld(clientX, clientY) {
+    const dx = clientX - (currentCam.focusX + currentCam.breathX);
+    const dy = clientY - (currentCam.focusY + currentCam.breathY);
+    return {
+      x: dx / currentCam.zoom + currentCam.focusX,
+      y: dy / currentCam.zoom + currentCam.focusY
+    };
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    const worldPt = screenToWorld(e.clientX, e.clientY);
+    if (mosquito.checkHit(worldPt.x, worldPt.y)) {
+      mosquito.squashMosquito();
+    }
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    const worldPt = screenToWorld(e.clientX, e.clientY);
+    canvas.style.cursor = mosquito.checkHit(worldPt.x, worldPt.y) ? 'pointer' : 'crosshair';
+  });
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    scaleFactor = Math.min(width / 1280, height / 800);
+    scaleFactor = clamp(scaleFactor, 0.58, 1.85);
+  }
+
+  window.addEventListener('resize', resize, { passive: true });
+  resize();
+
+  let lastTime = performance.now();
+  let accumulatedTime = 0;
+
+  function animate(now) {
+    const rawDt = (now - lastTime) * 0.001;
+    lastTime = now;
+    const dt = clamp(rawDt, 0.001, 0.05);
+    accumulatedTime += dt;
+
+    atmosphere.renderBackground(ctx, width, height, accumulatedTime);
+
+    ctx.save();
+    const cycleT = mosquito.cycleTime;
+    const macroZoom = 1.0 + 0.045 * smootherstep(4.5, 8.5, cycleT) * (1 - smootherstep(16.2, 18.5, cycleT));
+    const camBreathX = Math.sin(accumulatedTime * 0.7) * 3.5 * scaleFactor;
+    const camBreathY = Math.cos(accumulatedTime * 0.55) * 2.5 * scaleFactor;
+
+    const focusX = width * skin.punctureNormX;
+    const focusY = height * skin.baseSurfaceRatio;
+
+    currentCam.focusX = focusX;
+    currentCam.focusY = focusY;
+    currentCam.breathX = camBreathX;
+    currentCam.breathY = camBreathY;
+    currentCam.zoom = macroZoom;
+
+    ctx.translate(focusX + camBreathX, focusY + camBreathY);
+    ctx.scale(macroZoom, macroZoom);
+    ctx.translate(-focusX, -focusY);
+
+    mosquito.updateAndRender(ctx, width, height, accumulatedTime, dt);
+
+    ctx.restore();
+
+    atmosphere.renderForeground(ctx, width, height, accumulatedTime);
+
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
